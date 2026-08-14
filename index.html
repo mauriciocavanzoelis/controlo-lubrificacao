@@ -750,6 +750,18 @@ const supabaseClient = window.supabase.createClient(
 );
 
 const INSTALACAO_NOME = "ELIS — Famalicão";
+  (async function testarSupabase() {
+  const { error } = await supabaseClient
+    .from("instalacoes")
+    .select("id")
+    .limit(1);
+
+  if (error) {
+    console.error("Error de Supabase:", error.message);
+  } else {
+    console.log("Supabase conectado correctamente");
+  }
+})();
 /* ===================== DATA LAYER ===================== */
 /* Armazenamento PARTILHADO: cada registo tem a sua própria chave (ex: "plano:abc123"),
    para que vários utilizadores possam adicionar dados ao mesmo tempo sem apagar o

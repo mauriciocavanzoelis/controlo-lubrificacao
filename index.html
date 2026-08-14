@@ -371,6 +371,7 @@
     }
   }
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -740,6 +741,15 @@
 <div class="toast" id="toast"></div>
 
 <script>
+  const SUPABASE_URL = "https://pkkbegncamujqzosbnss.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Fvn5231l49Y6m3Lq8LRMcg_f2YRBuVl";
+
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+const INSTALACAO_NOME = "ELIS — Famalicão";
 /* ===================== DATA LAYER ===================== */
 /* Armazenamento PARTILHADO: cada registo tem a sua própria chave (ex: "plano:abc123"),
    para que vários utilizadores possam adicionar dados ao mesmo tempo sem apagar o

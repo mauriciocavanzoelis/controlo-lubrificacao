@@ -1150,22 +1150,7 @@ async function loadData() {
 
   DATA = { planos, registos, oleos, movimentos };
 
-  const isEmpty =
-    planos.length === 0 &&
-    registos.length === 0 &&
-    oleos.length === 0 &&
-    movimentos.length === 0;
-
-  if (isEmpty) {
-    const seed = seedRecords();
-
-    for (const o of seed.oleos) await saveRecord("oleos", o);
-    for (const p of seed.planos) await saveRecord("planos", p);
-    for (const r of seed.registos) await saveRecord("registos", r);
-    for (const m of seed.movimentos) await saveRecord("movimentos", m);
-
-    DATA = seed;
-  }
+  
 
   updateStorageBanner();
   ativarTempoReal();

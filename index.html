@@ -436,7 +436,7 @@
 
     <div class="card">
       <p class="card-title">Stock de lubrificante a precisar de atenção</p>
-      <div id="dashAlertsStock"><div class="empty-state"><div class="icon">?</div>Stock de lubrificantes dentro do esperado.</div></div>
+      <div id="dashAlertsStock"><div class="empty-state"><div class="icon">✅</div>Stock de lubrificantes dentro do esperado.</div></div>
     </div>
   </section>
 
@@ -1287,7 +1287,7 @@ function renderDashboard(){
 
   const alertsPlanoEl = document.getElementById("dashAlertsPlano");
   if(urgentPlanos.length===0){
-    alertsPlanoEl.innerHTML = `<div class="empty-state"><div class="icon">?</div>Tudo dentro do prazo.</div>`;
+    alertsPlanoEl.innerHTML = `<div class="empty-state"><div class="icon">✅</div>Tudo dentro do prazo.</div>`;
   }else{
     alertsPlanoEl.innerHTML = urgentPlanos.map(({p,e})=>`
       <div class="alert-item ${e.code}">

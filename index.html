@@ -1171,7 +1171,7 @@ function updateStorageBanner(){
     banner.style.background = "#FBF0DA";
     banner.style.borderBottomColor = "#f0d9a8";
     banner.style.color = "#7a5a10";
-    textEl.textContent = "?? Dados partilhados — todas as pessoas que usarem esta app veem e editam os mesmos registos.";
+    textEl.textContent = "Dados partilhados — todas as pessoas que usarem esta app veem e editam os mesmos registos.";
     document.getElementById("refreshBtn").style.display = "";
   }
 }
@@ -1306,7 +1306,7 @@ function renderDashboard(){
 
   const alertsStockEl = document.getElementById("dashAlertsStock");
   if(urgentStock.length===0){
-    alertsStockEl.innerHTML = `<div class="empty-state"><div class="icon">?</div>Stock de lubrificantes dentro do esperado.</div>`;
+    alertsStockEl.innerHTML = `<div class="empty-state"><div class="icon">✅</div>Stock de lubrificantes dentro do esperado.</div>`;
   }else{
     alertsStockEl.innerHTML = urgentStock.map(({o,e})=>`
       <div class="alert-item ${e.code}">

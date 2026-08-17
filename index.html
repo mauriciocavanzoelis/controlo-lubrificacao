@@ -1454,7 +1454,7 @@ function renderStock(){
   const movList = document.getElementById("movList");
   const movs = [...DATA.movimentos].sort((a,b)=> b.data.localeCompare(a.data)).slice(0,30);
   if(movs.length===0){
-    movList.innerHTML = `<div class="empty-state"><div class="icon">??</div>Sem movimentos registados.</div>`;
+    movList.innerHTML = `<div class="empty-state"><div class="icon">❕</div>Sem movimentos registados.</div>`;
   }else{
     movList.innerHTML = `<table><thead><tr><th>Data</th><th>Lubrificante</th><th>Tipo</th><th>Qtd.</th><th>Motivo</th><th></th></tr></thead><tbody>` +
       movs.map(m=>{

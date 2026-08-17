@@ -1171,6 +1171,70 @@ async function loadData() {
   ativarTempoReal();
 }
 
+let realtimeChannel = null;
+let realtimeTimer = null;
+
+function ativarTempoReal() {
+  if (realtimeChannel) return;
+
+  realtimeChannel = supabaseClient
+    .channel("controlo-lubrificacao-partilhado")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public" },
+      () => {
+        clearTimeout(realtimeTimer);
+        realtimeTimer = setTimeout(async () => {
+          if (STORAGE_MODE === "partilhado") {
+            await refreshData();
+          }
+        }, 400);
+      }
+    )
+    .subscribe();
+}
+
+async function loadData() {
+  await detectStorage();
+
+  if (STORAGE_MODE === "local") {
+    if (DATA.planos.length === 0 && DATA.oleos.length === 0) {
+      DATA = seedRecords();
+    }
+    updateStorageBanner();
+    return;
+  }
+
+  const [planos, registos, oleos, movimentos] = await Promise.all([
+    fetchTable("plano"),
+    fetchTable("registo"),
+    fetchTable("oleo"),
+    fetchTable("mov")
+  ]);
+
+  DATA = { planos, registos, oleos, movimentos };
+
+  const isEmpty =
+    planos.length === 0 &&
+    registos.length === 0 &&
+    oleos.length === 0 &&
+    movimentos.length === 0;
+
+  if (isEmpty) {
+    const seed = seedRecords();
+
+    for (const o of seed.oleos) await saveRecord("oleos", o);
+    for (const p of seed.planos) await saveRecord("planos", p);
+    for (const r of seed.registos) await saveRecord("registos", r);
+    for (const m of seed.movimentos) await saveRecord("movimentos", m);
+
+    DATA = seed;
+  }
+
+  updateStorageBanner();
+  ativarTempoReal();
+}
+  
 function updateStorageBanner(){
   const banner = document.getElementById("sharedBanner");
   const textEl = document.getElementById("sharedBannerText");

@@ -783,59 +783,308 @@ const TABLES = {
   movimentos: "mov"
 };
 
-async function detectStorage(){
-  if(typeof window.storage === "undefined" || !window.storage){
+const ID_MAP = {};
+
+function resolveId(id) {
+  return ID_MAP[id] || id;
+}
+
+function isUuid(id) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id || "");
+}
+
+async function ensureInstalacao() {
+  const { data, error } = await supabaseClient
+    .from("instalacoes")
+    .select("id")
+    .eq("nome", INSTALACAO_NOME)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (data) return data.id;
+
+  const created = await supabaseClient
+    .from("instalacoes")
+    .insert({ nome: INSTALACAO_NOME })
+    .select("id")
+    .single();
+
+  if (created.error) throw created.error;
+  return created.data.id;
+}
+
+async function ensureEquipamento(nome) {
+  const instalacaoId = await ensureInstalacao();
+
+  const { data, error } = await supabaseClient
+    .from("equipamentos")
+    .select("id")
+    .eq("instalacao_id", instalacaoId)
+    .eq("nome", nome)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (data) return data.id;
+
+  const created = await supabaseClient
+    .from("equipamentos")
+    .insert({ instalacao_id: instalacaoId, nome })
+    .select("id")
+    .single();
+
+  if (created.error) throw created.error;
+  return created.data.id;
+}
+
+async function detectStorage() {
+  try {
+    const { error } = await supabaseClient
+      .from("instalacoes")
+      .select("id")
+      .limit(1);
+
+    STORAGE_MODE = error ? "local" : "partilhado";
+  } catch (e) {
     STORAGE_MODE = "local";
+  }
+}
+
+async function fetchTable(prefix) {
+  if (STORAGE_MODE === "local") return [];
+
+  try {
+    const instalacaoId = await ensureInstalacao();
+
+    if (prefix === "oleo") {
+      const { data, error } = await supabaseClient
+        .from("lubrificantes")
+        .select("*")
+        .eq("instalacao_id", instalacaoId);
+
+      if (error) throw error;
+
+      return data.map(o => ({
+        id: o.id,
+        nome: o.nome,
+        unidade: o.unidade,
+        stockMinimo: Number(o.stock_minimo || 0),
+        stockInicial: Number(o.stock_inicial || 0),
+        fornecedor: o.fornecedor || ""
+      }));
+    }
+
+    const equipamentosRes = await supabaseClient
+      .from("equipamentos")
+      .select("id,nome")
+      .eq("instalacao_id", instalacaoId);
+
+    if (equipamentosRes.error) throw equipamentosRes.error;
+
+    const equipamentos = equipamentosRes.data || [];
+    const equipamentoIds = equipamentos.map(e => e.id);
+    const nomesEquipamento = Object.fromEntries(
+      equipamentos.map(e => [e.id, e.nome])
+    );
+
+    if (prefix === "plano") {
+      if (equipamentoIds.length === 0) return [];
+
+      const { data, error } = await supabaseClient
+        .from("pontos_lubrificacao")
+        .select("*")
+        .in("equipamento_id", equipamentoIds);
+
+      if (error) throw error;
+
+      return data.map(p => ({
+        id: p.id,
+        equipamento: nomesEquipamento[p.equipamento_id] || "",
+        ponto: p.nome,
+        oleoId: p.lubrificante_id,
+        quantidade: Number(p.quantidade || 0),
+        metodo: p.metodo || "",
+        frequencia: Number(p.frequencia_dias || 0),
+        frequenciaUnidade: p.frequencia_unidade || "dias",
+        responsavel: p.responsavel || ""
+      }));
+    }
+
+    if (prefix === "registo") {
+      if (equipamentoIds.length === 0) return [];
+
+      const pontosRes = await supabaseClient
+        .from("pontos_lubrificacao")
+        .select("id")
+        .in("equipamento_id", equipamentoIds);
+
+      if (pontosRes.error) throw pontosRes.error;
+
+      const pontoIds = (pontosRes.data || []).map(p => p.id);
+      if (pontoIds.length === 0) return [];
+
+      const { data, error } = await supabaseClient
+        .from("registos_lubrificacao")
+        .select("*")
+        .in("ponto_id", pontoIds);
+
+      if (error) throw error;
+
+      return data.map(r => ({
+        id: r.id,
+        planoId: r.ponto_id,
+        data: r.data_lubrificacao,
+        quantidade: Number(r.quantidade || 0),
+        operador: r.operador || "",
+        obs: r.observacao || ""
+      }));
+    }
+
+    if (prefix === "mov") {
+      const oleosRes = await supabaseClient
+        .from("lubrificantes")
+        .select("id")
+        .eq("instalacao_id", instalacaoId);
+
+      if (oleosRes.error) throw oleosRes.error;
+
+      const oleoIds = (oleosRes.data || []).map(o => o.id);
+      if (oleoIds.length === 0) return [];
+
+      const { data, error } = await supabaseClient
+        .from("movimentos_stock")
+        .select("*")
+        .in("lubrificante_id", oleoIds);
+
+      if (error) throw error;
+
+      return data.map(m => ({
+        id: m.id,
+        oleoId: m.lubrificante_id,
+        tipo: m.tipo,
+        data: m.data,
+        quantidade: Number(m.quantidade || 0),
+        motivo: m.motivo || "",
+        responsavel: m.responsavel || ""
+      }));
+    }
+
+    return [];
+  } catch (e) {
+    console.error("Erro ao carregar dados:", e);
+    return [];
+  }
+}
+
+async function persistRecord(table, record, payload) {
+  const originalId = record.id;
+
+  if (isUuid(record.id)) {
+    const { error } = await supabaseClient
+      .from(table)
+      .update(payload)
+      .eq("id", record.id);
+
+    if (error) throw error;
     return;
   }
-  try{
-    await window.storage.list("__ping__:", true);
-    STORAGE_MODE = "partilhado";
-  }catch(e){
-    STORAGE_MODE = "local";
-  }
+
+  const { data, error } = await supabaseClient
+    .from(table)
+    .insert(payload)
+    .select("id")
+    .single();
+
+  if (error) throw error;
+
+  ID_MAP[originalId] = data.id;
+  record.id = data.id;
 }
 
-async function fetchTable(prefix){
-  if(STORAGE_MODE === "local") return [];
-  const out = [];
-  try{
-    const listRes = await window.storage.list(prefix + ":", true);
-    const keys = (listRes && listRes.keys) || [];
-    for(const key of keys){
-      try{
-        const r = await window.storage.get(key, true);
-        if(r && r.value) out.push(JSON.parse(r.value));
-      }catch(e){ /* chave removida entretanto por outro utilizador */ }
+async function saveRecord(tableKey, record) {
+  try {
+    if (tableKey === "oleos") {
+      const instalacaoId = await ensureInstalacao();
+
+      await persistRecord("lubrificantes", record, {
+        instalacao_id: instalacaoId,
+        nome: record.nome,
+        unidade: record.unidade,
+        stock_inicial: Number(record.stockInicial || 0),
+        stock_minimo: Number(record.stockMinimo || 0),
+        fornecedor: record.fornecedor || ""
+      });
+      return;
     }
-  }catch(e){
-    console.error("Erro ao listar", prefix, e);
-  }
-  return out;
-}
 
-async function saveRecord(tableKey, record){
-  if(STORAGE_MODE === "local") return; // guardado apenas em memória (já está em DATA)
-  const prefix = TABLES[tableKey];
-  try{
-    await window.storage.set(`${prefix}:${record.id}`, JSON.stringify(record), true);
-  }catch(e){
+    if (tableKey === "planos") {
+      record.oleoId = resolveId(record.oleoId);
+      const equipamentoId = await ensureEquipamento(record.equipamento);
+
+      await persistRecord("pontos_lubrificacao", record, {
+        equipamento_id: equipamentoId,
+        nome: record.ponto,
+        lubrificante_id: record.oleoId,
+        quantidade: Number(record.quantidade || 0),
+        metodo: record.metodo || "",
+        frequencia_dias: Number(record.frequencia || 0),
+        frequencia_unidade: record.frequenciaUnidade || "dias",
+        responsavel: record.responsavel || ""
+      });
+      return;
+    }
+
+    if (tableKey === "registos") {
+      record.planoId = resolveId(record.planoId);
+
+      await persistRecord("registos_lubrificacao", record, {
+        ponto_id: record.planoId,
+        data_lubrificacao: record.data,
+        quantidade: Number(record.quantidade || 0),
+        operador: record.operador || "",
+        observacao: record.obs || ""
+      });
+      return;
+    }
+
+    if (tableKey === "movimentos") {
+      record.oleoId = resolveId(record.oleoId);
+
+      await persistRecord("movimentos_stock", record, {
+        lubrificante_id: record.oleoId,
+        tipo: record.tipo,
+        data: record.data,
+        quantidade: Number(record.quantidade || 0),
+        motivo: record.motivo || "",
+        responsavel: record.responsavel || ""
+      });
+    }
+  } catch (e) {
     console.error("Erro ao guardar registo:", e);
-    showToast("Guardado só nesta janela — sem ligação ao armazenamento partilhado");
+    showToast("Não foi possível guardar os dados partilhados");
   }
 }
 
-async function deleteRecord(tableKey, id){
-  if(STORAGE_MODE === "local") return;
-  const prefix = TABLES[tableKey];
-  try{
-    await window.storage.delete(`${prefix}:${id}`, true);
-  }catch(e){
+async function deleteRecord(tableKey, id) {
+  const tabelas = {
+    planos: "pontos_lubrificacao",
+    registos: "registos_lubrificacao",
+    oleos: "lubrificantes",
+    movimentos: "movimentos_stock"
+  };
+
+  try {
+    const { error } = await supabaseClient
+      .from(tabelas[tableKey])
+      .delete()
+      .eq("id", resolveId(id));
+
+    if (error) throw error;
+  } catch (e) {
     console.error("Erro ao remover registo:", e);
-    showToast("Removido só nesta janela — sem ligação ao armazenamento partilhado");
+    showToast("Não foi possível remover os dados partilhados");
   }
 }
-
+  
 function seedRecords(){
   const oleo1 = uid("ol"), oleo2 = uid("ol");
   const plano1 = uid("pl"), plano2 = uid("pl");
